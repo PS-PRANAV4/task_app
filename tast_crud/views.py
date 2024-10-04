@@ -14,52 +14,26 @@ from django.contrib.postgres.aggregates import JSONBAgg
 
 
 class TaskViewSet(viewsets.ModelViewSet):
-    queryset = SheduledTask.objects.all()
+    queryset = SheduledTask.objects.all().order_by("id")
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SheduledTask.objects.filter(user=self.request.user).order_by("id")
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 
-class TaskGroupedByDateView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    
 
-    def get(self, request, *args, **kwargs):
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
+class ChangeStatus(views.APIView):
+    def get(self,request,id):
+        try:
+            task = SheduledTask.objects.get(id=id)
+            task.task_status = True if task.task_status == False else False
+            task.save()
+        except Exception as e:
+            return Response({"msg":"failed"},status=400)
 
-        if start_date and end_date:
-            try:
-                # Convert to datetime objects
-                start_date = datetime.fromisoformat(start_date)
-                end_date = datetime.fromisoformat(end_date)
-
-                # Group by date and aggregate task information
-                tasks_by_date = (
-                    SheduledTask.objects
-                    .filter(due_date__range=(start_date, end_date))
-                    .annotate(task_date=TruncDate('due_date'))  # Truncate time from due_date
-                    .values('task_date')  # Get unique task dates
-                    .annotate(
-                        tasks=JSONBAgg(
-                            Value({
-                                'id': F('id'),
-                                'title': F('title'),
-                                'description': F('description'),
-                                'completed': F('completed')
-                            })
-                        )
-                    )
-                    .order_by('task_date')  # Optional: Order by date
-                )
-
-                # Create a dictionary from the aggregated results
-                result = {item['task_date']: item['tasks'] for item in tasks_by_date}
-
-                return Response(result)
-
-            except ValueError:
-                return Response({"error": "Invalid date format"}, status=400)
-
-        return Response({"error": "Start date and end date are required"}, status=400)
+        return Response({"msg":"success"},status=200)

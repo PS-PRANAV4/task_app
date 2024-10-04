@@ -7,3 +7,4 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = SheduledTask
         fields = '__all__'
+        read_only_fields = ['user'] 

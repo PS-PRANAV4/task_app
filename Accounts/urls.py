@@ -20,7 +20,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import SendMailOTp,Signup,VerifyMailOtp
+from .views import SendMailOTp,Signup,VerifyMailOtp,LoginApi,LoginWithOtp,VerifyLoginotp
 
 urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -28,5 +28,8 @@ urlpatterns = [
     path('signup/',Signup.as_view()),
     path("send-mail-otp/",SendMailOTp.as_view()),
     path("verify-otp/",VerifyMailOtp.as_view()),
+    path("login/",LoginApi.as_view()),
+    path("login-send-otp/",LoginWithOtp.as_view()),
+    path("login-otp/",VerifyLoginotp.as_view())
 
 ]

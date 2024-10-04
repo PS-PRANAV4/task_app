@@ -13,6 +13,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from .models import EmailOtp
 from .utils import generate_unique_string
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class SendMailOTp(APIView):
     @swagger_auto_schema(
@@ -34,7 +35,8 @@ class SendMailOTp(APIView):
             email_validator(email)
         except ValidationError:
             return Response({"msg": "Invalid email format"}, status=status.HTTP_400_BAD_REQUEST)
-        
+        if User.objects.filter(email=email).exists():
+            return Response({"msg": "User already exist with this email"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             otp = random.randint(100000, 999999)
@@ -113,3 +115,81 @@ class Signup(APIView):
         except:
             return Response({"msg":"please enter valid data"},status=status.HTTP_400_BAD_REQUEST)
         return Response({"msg":"user created"},status=status.HTTP_201_CREATED)
+    
+
+
+class LoginApi(APIView):
+    def post(self,request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        try:
+            user = User.objects.get(username=username)
+            authenticate = user.check_password(password)
+            if authenticate:
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                            "msg": "Customer login",
+                            "id": user.id,
+                            
+                            'refresh': str(refresh),
+                            'access': str(refresh.access_token),
+                        }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"message":"Invalid username or password"},status=status.HTTP_400_BAD_REQUEST)
+from .models import OtpLogin        
+
+class LoginWithOtp(APIView):
+    def post(self,request):
+        email = request.data.get("email")
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"msg":"please enter a valid user"},status=status.HTTP_400_BAD_REQUEST)
+    
+        try:
+            otp = random.randint(100000, 999999)
+            try:
+                email_otp_obj = OtpLogin.objects.get(email=email)
+                email_otp_obj.otp = otp
+                email_otp_obj.save()
+            except OtpLogin.DoesNotExist:
+                email_otp_obj = OtpLogin.objects.create(email=email,otp=otp)
+                
+            subject = "task app email otp"
+            message = f"Your OTP for the task app is {otp}"  # Generate a random OTP in a real application
+            from_email = settings.EMAIL_HOST_USER
+            recipient_list = [email]
+            
+            send_mail(subject, message, from_email, recipient_list)
+        except Exception as e:
+            return Response({"msg": "Failed to send email", "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"msg": "OTP sent successfully"}, status=status.HTTP_200_OK)
+    
+class VerifyLoginotp(APIView):
+    def post(self,request):
+        email = request.data.get("email")
+        otp = request.data.get("otp")
+        if email is None or otp is None:
+            return Response({"msg":"Enter valid email and otp"},status=status.HTTP_400_BAD_REQUEST)
+        try:
+            OtpLogin.objects.get(email=email,otp=otp)
+            try:
+                user = User.objects.get(email=email)
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                            "msg": "Customer login",
+                            "id": user.id,
+                            
+                            'refresh': str(refresh),
+                            'access': str(refresh.access_token),
+                        }, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response({"message":"Server error"},status=status.HTTP_400_BAD_REQUEST)
+        except OtpLogin.DoesNotExist:
+            return Response({"msg":"Invalid  email and otp"},status=status.HTTP_400_BAD_REQUEST)
+        
